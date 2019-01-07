@@ -354,26 +354,34 @@ class CPELoss(nn.Module):
 
 
 class Detector(object):
-    def __init__(self, distances, known_labels, std_coefficient=1.0):
+    def __init__(self, distances: list, known_labels: set, std_coefficient=1.0):
         self.distances = np.array(distances, dtype=[('label', np.int32), ('distance', np.float32)])
-        self.known_labels = known_labels
+        self._known_labels = set(known_labels)
         self.std_coefficient = std_coefficient
 
         self.average_distances = {l: np.average(self.distances[self.distances['label'] == l]['distance'])
-                                  for l in self.known_labels}
+                                  for l in self._known_labels}
         self.std_distances = {l: self.distances[self.distances['label'] == l]['distance'].std()
-                              for l in self.known_labels}
+                              for l in self._known_labels}
         self.thresholds = {l: self.average_distances[l] + (self.std_coefficient * self.std_distances[l])
-                           for l in self.known_labels}
+                           for l in self._known_labels}
         self.results = None
 
     def __call__(self, predicted_label, distance):
         novelty = False
 
-        if predicted_label not in self.known_labels or distance > self.thresholds.get(predicted_label, 0.0):
+        if predicted_label not in self._known_labels or distance > self.thresholds.get(predicted_label, 0.0):
             novelty = True
 
         return novelty
+
+    @property
+    def known_labels(self):
+        return self._known_labels
+
+    @known_labels.setter
+    def known_labels(self, label_set):
+        self._known_labels = set(label_set)
 
     def evaluate(self, results):
         self.results = np.array(results, dtype=[
@@ -395,7 +403,7 @@ class Detector(object):
         true_negative = len(self.results) - true_positive - false_positive - false_negative
 
         cm = confusion_matrix(self.results['true_label'], self.results['predicted_label'], sorted(list(np.unique(self.results['true_label']))))
-        results = self.results[np.isin(self.results['true_label'], list(self.known_labels))]
+        results = self.results[np.isin(self.results['true_label'], list(self._known_labels))]
         acc = accuracy_score(results['true_label'], results['predicted_label'])
 
         return true_positive, false_positive, false_negative, true_negative, cm, acc

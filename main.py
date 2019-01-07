@@ -9,6 +9,7 @@ from config import Config
 from torch import optim
 from torch.utils.data import DataLoader
 
+
 def stream(config, trainset, streamset):
     logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def stream(config, trainset, streamset):
                           number_layers=config.number_layers,
                           growth_rate=config.growth_rate,
                           drop_rate=config.drop_rate)
-    logger.info("DenseNet Channels: %d", net.channels)
+    logger.info("densenet channel: %d", net.channels)
 
     criterion = models.CPELoss(gamma=config.gamma, tao=config.tao, b=config.b, beta=config.beta, lambda_=config.lambda_)
     optimizer = optim.SGD(net.parameters(), lr=config.learning_rate, momentum=0.9)
@@ -31,8 +32,10 @@ def stream(config, trainset, streamset):
         pass
     logger.info("original prototype count: %d", len(prototypes))
 
+    detector = None
+
     def train(train_dataset):
-        dataloader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=True, num_workers=1)
+        dataloader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=True)
         for epoch in range(config.epoch_number):
             logger.info('----------------------------------------------------------------')
             logger.info("epoch: %d", epoch + 1)
@@ -55,9 +58,9 @@ def stream(config, trainset, streamset):
             logger.info("prototypes count after update: %d", len(prototypes))
         else:
             net.save(config.net_path)
-            logger.info("net has been saved")
+            logger.info("net has been saved.")
             prototypes.save(config.prototypes_path)
-            logger.info("prototypes has been saved")
+            logger.info("prototypes has been saved.")
 
             intra_distances = []
             with torch.no_grad():
@@ -68,25 +71,81 @@ def stream(config, trainset, streamset):
                     closest_prototype, distance = prototypes.closest(feature, label)
                     intra_distances.append((label, distance))
 
-            detector = models.Detector(intra_distances, train_dataset.label_set, config.std_coefficient)
+            novelty_detector = models.Detector(intra_distances, prototypes.label_set, config.std_coefficient)
             logger.info("distance average: %s", detector.average_distances)
             logger.info("distance std: %s", detector.std_distances)
             logger.info("detector threshold: %s", detector.thresholds)
             detector.save(config.detector_path)
-            logger.info("detector has been saved")
+            logger.info("detector has been saved.")
 
-        return detector
+        return novelty_detector
 
-    def test():
-        pass
+    def test(test_dataset, novelty_detector, known_labels):
+        dataloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
+        novelty_detector.known_labels = known_labels
+
+        detection_results = []
+
+        with torch.no_grad():
+            net.eval()
+            for i, (feature, label) in enumerate(dataloader):
+                feature, label = feature.to(net.device), label.item()
+                feature, out = net(feature)
+                predicted_label, distance = models.predict(feature, prototypes)
+                prob = models.probability(feature, predicted_label, prototypes, gamma=config.gamma)
+                detected_novelty = detector(predicted_label, distance)
+                real_novelty = label not in novelty_detector.known_labels
+
+                detection_results.append((label, predicted_label, real_novelty, detected_novelty))
+
+                logger.debug("[test %5d]: %d, %d, %7.4f, %7.4f, %5s, %5s",
+                             i + 1, label, predicted_label, prob, distance, real_novelty, detected_novelty)
+
+    def stream_train(train_dataset, stream_dataset):
+        novelty_detector = train(trainset)
+
+        novelty_dataset = dataset.NoveltyDataset(train_dataset)
+        iter_streamloader = enumerate(DataLoader(dataset=stream_dataset, batch_size=1, shuffle=True))
+        buffer = []
+
+        for i, (feature, label) in iter_streamloader:
+            sample = (feature.squeeze(dim=0), label.squeeze(dim=0))
+            with torch.no_grad():
+                net.eval()
+                feature, label = feature.to(net.device), label.item()
+                feature, out = net(feature)
+                predicted_label, distance = models.predict(feature, prototypes)
+                prob = models.probability(feature, predicted_label, prototypes, gamma=config.gamma)
+                detected_novelty = novelty_detector(predicted_label, distance)
+                real_novelty = label not in detector.known_labels
+
+            if detected_novelty:
+                buffer.append(sample)
+
+            logger.debug("[stream %5d]: %d, %d, %7.4f, %7.4f, %5s, %5s, %4d",
+                         i + 1, label, predicted_label, prob, distance, real_novelty, detected_novelty, len(buffer))
+
+            if len(buffer) >= 1000:
+                logger.info("novelty dataset size before extending: %d", len(novelty_dataset))
+                novelty_dataset.extend(buffer, config.novelty_buffer_sample_rate)
+                logger.info("novelty dataset size after extending: %d", len(novelty_dataset))
+                novelty_detector = train(novelty_dataset)
+                buffer.clear()
+
+        return novelty_detector
 
     if config.train:
         for period in range(config.period):
             logger.info('----------------------------------------------------------------')
             logger.info("period: %d", period + 1)
-            train(trainset)
+            logger.info("stream training started.")
+            detector = stream_train(trainset, streamset)
+
+        logger.info("testing started.")
+        test(streamset, detector, trainset.label_set)
     else:
-        pass
+        logger.info("testing started.")
+        # test(streamset, detector, trainset.label_set)
 
 
 def main(args):
@@ -111,44 +170,14 @@ def main(args):
 
     setup_logger(level=logging.DEBUG, filename=config.log_path)
 
-    # start adjusting parameters according to dataset
     if config.dataset == 'fm':
         trainset = dataset.FashionMnist(train=True)
         testset = dataset.FashionMnist(train=False)
-        parameters = {
-            'number_layers': 6,
-            'growth_rate': 12,
-            'learning_rate': 0.001,
-            'drop_rate': 0.2,
-            'threshold': 10.0,
-            'gamma': 0.1,
-            'tao': 20.0,
-            'b': 10.0,
-            'beta': 1.0,
-            'lambda_': 0.001,
-            'std_coefficient': 3.0
-        }
     elif config.dataset == 'c10':
         trainset = dataset.Cifar10(train=True)
         testset = dataset.Cifar10(train=False)
-        parameters = {
-            'number_layers': 8,
-            'growth_rate': 16,
-            'learning_rate': 0.001,
-            'drop_rate': 0.2,
-            'threshold': 15.0,
-            'gamma': 1 / 15.0,
-            'tao': 30.0,
-            'b': 15.0,
-            'beta': 1.0,
-            'lambda_': 0.001,
-            'std_coefficient': 3.0
-        }
     else:
         raise RuntimeError("Dataset not found.")
-
-    config.update(**parameters)
-    # end adjusting parameters according to dataset
 
     logger.info("****************************************************************")
     logger.info("%s", config)

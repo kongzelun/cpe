@@ -47,7 +47,7 @@ class Cifar10(Dataset):
         if train:
             dataset = dataset[:self.train_test_split]
         else:
-            dataset = dataset[self.train_test_split:10000]
+            dataset = dataset[self.train_test_split:]
 
         self.data = []
         self.train = train
@@ -68,6 +68,7 @@ class Cifar10(Dataset):
 class NoveltyDataset(Dataset):
     def __init__(self, dataset):
         self.data = sample(dataset.data, 2000)
+        self.label_set = set(dataset.label_set)
 
     def extend(self, buffer, percent):
         assert 0 < percent <= 1

@@ -2,44 +2,60 @@ import os
 import shutil
 import json
 
+
 class Config:
-    # read from args
-    type = None
-    clear = False
-    train = True
-    running_path = None
-    period = 1
-    epoch_number = 1
-    device = 'cpu'
-    dataset = None
-    novelty_buffer_sample_rate = 0.3
-
-    # read from json
-    number_layers = 6
-    growth_rate = 12
-    learning_rate = 0.001
-    drop_rate = 0.1,
-    threshold = 10.0
-    gamma = 0.1
-    tao = 10.0
-    b = 1.0
-    beta = 0.1
-    lambda_ = 0.1
-    std_coefficient = 1.0
-
-    # derived
-    path = None
-    log_path = None
-    optim_path = None
-    net_path = None
-    prototypes_path = None
-    detector_path = None
-    probs_path = None
-
     def __init__(self, args):
+        # read from args
         self.path = "{}/config.json".format(args.dir)
+        self.running_path = args.dir
+        self.clear = args.clear
+        self.type = args.type
+        self.train = args.train
+        self.period = args.period if args.train else 1
+        self.epoch_number = args.epoch if args.train else 1
+        self.dataset = args.dataset
+        self.device = args.device
+        self.novelty_buffer_sample_rate = args.rate if self.type == 'stream' else 0.0
 
-        if not os.path.isdir(args.dir):
+        # derived
+        self.parameter_path = os.path.join(self.running_path, "parameter.json")
+        self.log_path = os.path.join(self.running_path, "run.log")
+        self.net_path = os.path.join(self.running_path, "model.pkl")
+        self.prototypes_path = os.path.join(self.running_path, "prototypes.pkl")
+        self.detector_path = os.path.join(self.running_path, "detector.pkl")
+        self.probs_path = os.path.join(self.running_path, "probs.pkl")
+
+        # parameters
+        if self.dataset == 'fm':
+            self.number_layers = 6
+            self.growth_rate = 12
+            self.learning_rate = 0.001
+            self.drop_rate = 0.2
+            self.threshold = 10.0
+            self.gamma = 0.1
+            self.tao = 20.0
+            self.b = 10.0
+            self.beta = 1.0
+            self.lambda_ = 0.001
+            self.std_coefficient = 3.0
+        elif self.dataset == 'c10':
+            self.number_layers = 8
+            self.growth_rate = 16
+            self.learning_rate = 0.001
+            self.drop_rate = 0.2
+            self.threshold = 15.0
+            self.gamma = 1 / 15.0
+            self.tao = 30.0
+            self.b = 15.0
+            self.beta = 1.0
+            self.lambda_ = 0.001
+            self.std_coefficient = 3.0
+
+        if not os.path.isdir(self.running_path):
+            os.mkdir(self.running_path)
+
+        if self.clear:
+            shutil.rmtree(args.dir)
             os.mkdir(args.dir)
 
         if os.path.isfile(self.path):
@@ -47,36 +63,14 @@ class Config:
                 config_dict = json.load(file)
             self.update(**config_dict)
 
-        if args.clear:
-            shutil.rmtree(args.dir)
-            os.mkdir(args.dir)
-            self.clear = True
-
-        self.type = args.type
-        self.running_path = args.dir
-        self.dataset = args.dataset
-        self.device = args.device
-
-        self.train = args.train
-        self.period = args.period if args.train else 1
-        self.epoch_number = args.epoch if args.train else 1
-
-        if self.type == 'stream':
-            self.novelty_buffer_sample_rate = args.rate
-
-        self.log_path = os.path.join(self.running_path, "run.log")
-        self.net_path = os.path.join(self.running_path, "model.pkl")
-        self.prototypes_path = os.path.join(self.running_path, "prototypes.pkl")
-        self.detector_path = os.path.join(self.running_path, "detector.pkl")
-        self.probs_path = os.path.join(self.running_path, "probs.pkl")
-
         self.dump()
 
     def update(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.dump()
 
     def dump(self):
-        with open(self.path, 'w') as file:
+        with open(self.parameter_path, 'w') as file:
             parameters = {
                 'number_layers': self.number_layers,
                 'growth_rate': self.growth_rate,
@@ -93,4 +87,8 @@ class Config:
             json.dump(parameters, file)
 
     def __repr__(self):
-        return "{}".format(self.__dict__)
+        s = ''
+        for k, v in self.__dict__.items():
+            s = s + '\n{}: {}'.format(k, v)
+
+        return s
