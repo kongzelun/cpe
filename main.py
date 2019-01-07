@@ -69,6 +69,9 @@ def stream(config, trainset, streamset):
                     intra_distances.append((label, distance))
 
             detector = models.Detector(intra_distances, train_dataset.label_set, config.std_coefficient)
+            logger.info("distance average: %s", detector.average_distances)
+            logger.info("distance std: %s", detector.std_distances)
+            logger.info("detector threshold: %s", detector.thresholds)
             detector.save(config.detector_path)
             logger.info("detector has been saved")
 
