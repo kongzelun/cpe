@@ -248,9 +248,8 @@ class Prototypes(object):
         self._dict = dict()
 
         for p in temp_list:
-            if p.weight > 1:
-                p.weight = ceil(p.weight / 10)
-                self._append(p)
+            p.weight = p.weight / 2
+            self._append(p)
 
     def load(self, pkl_path):
         self.__dict__.update(torch.load(pkl_path))
@@ -382,6 +381,13 @@ class Detector(object):
     @known_labels.setter
     def known_labels(self, label_set):
         self._known_labels = set(label_set)
+
+        self.average_distances = {l: np.average(self.distances[self.distances['label'] == l]['distance'])
+                                  for l in self._known_labels}
+        self.std_distances = {l: self.distances[self.distances['label'] == l]['distance'].std()
+                              for l in self._known_labels}
+        self.thresholds = {l: self.average_distances[l] + (self.std_coefficient * self.std_distances[l])
+                           for l in self._known_labels}
 
     def evaluate(self, results):
         self.results = np.array(results, dtype=[

@@ -4,7 +4,6 @@ import time
 import torch
 import models
 import dataset
-import numpy as np
 from config import Config
 from torch import optim
 from torch.utils.data import DataLoader
@@ -35,10 +34,10 @@ def stream(config, trainset, streamset):
     detector = None
 
     def train(train_dataset):
+        logger.info('---------------- train ----------------')
         dataloader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=True)
         for epoch in range(config.epoch_number):
-            logger.info('----------------------------------------------------------------')
-            logger.info("epoch: %d", epoch + 1)
+            logger.info('---------------- epoch: %d ----------------', epoch + 1)
             logger.info("threshold: %.4f, gamma: %.4f, tao: %.4f, b: %.4f", config.threshold, config.gamma, config.tao, config.b)
             logger.info("prototypes count before training: %d", len(prototypes))
 
@@ -72,17 +71,22 @@ def stream(config, trainset, streamset):
                     intra_distances.append((label, distance))
 
             novelty_detector = models.Detector(intra_distances, prototypes.label_set, config.std_coefficient)
-            logger.info("distance average: %s", detector.average_distances)
-            logger.info("distance std: %s", detector.std_distances)
-            logger.info("detector threshold: %s", detector.thresholds)
-            detector.save(config.detector_path)
+            logger.info("distance average: %s", novelty_detector.average_distances)
+            logger.info("distance std: %s", novelty_detector.std_distances)
+            logger.info("detector threshold: %s", novelty_detector.thresholds)
+            novelty_detector.save(config.detector_path)
             logger.info("detector has been saved.")
 
         return novelty_detector
 
     def test(test_dataset, novelty_detector, known_labels):
+        logger.info('---------------- test ----------------')
         dataloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
         novelty_detector.known_labels = known_labels
+
+        logger.info("distance average: %s", novelty_detector.average_distances)
+        logger.info("distance std: %s", novelty_detector.std_distances)
+        logger.info("detector threshold: %s", novelty_detector.thresholds)
 
         detection_results = []
 
@@ -93,7 +97,7 @@ def stream(config, trainset, streamset):
                 feature, out = net(feature)
                 predicted_label, distance = models.predict(feature, prototypes)
                 prob = models.probability(feature, predicted_label, prototypes, gamma=config.gamma)
-                detected_novelty = detector(predicted_label, distance)
+                detected_novelty = novelty_detector(predicted_label, distance)
                 real_novelty = label not in novelty_detector.known_labels
 
                 detection_results.append((label, predicted_label, real_novelty, detected_novelty))
@@ -101,7 +105,22 @@ def stream(config, trainset, streamset):
                 logger.debug("[test %5d]: %d, %d, %7.4f, %7.4f, %5s, %5s",
                              i + 1, label, predicted_label, prob, distance, real_novelty, detected_novelty)
 
+        tp, fp, fn, tn, cm, acc = novelty_detector.evaluate(detection_results)
+        precision = tp / (tp + fp + 1)
+        recall = tp / (tp + fn + 1)
+
+        logger.info("accuracy: %7.4f", acc)
+        logger.info("true positive: %d", tp)
+        logger.info("false positive: %d", fp)
+        logger.info("false negative: %d", fn)
+        logger.info("true negative: %d", tn)
+        logger.info("precision: %7.4f", precision)
+        logger.info("recall: %7.4f", recall)
+        logger.info("confusion matrix: \n%s", cm)
+
     def stream_train(train_dataset, stream_dataset):
+        logger.info('---------------- stream train ----------------')
+
         novelty_detector = train(trainset)
 
         novelty_dataset = dataset.NoveltyDataset(train_dataset)
@@ -117,7 +136,7 @@ def stream(config, trainset, streamset):
                 predicted_label, distance = models.predict(feature, prototypes)
                 prob = models.probability(feature, predicted_label, prototypes, gamma=config.gamma)
                 detected_novelty = novelty_detector(predicted_label, distance)
-                real_novelty = label not in detector.known_labels
+                real_novelty = label not in novelty_detector.known_labels
 
             if detected_novelty:
                 buffer.append(sample)
@@ -136,15 +155,12 @@ def stream(config, trainset, streamset):
 
     if config.train:
         for period in range(config.period):
-            logger.info('----------------------------------------------------------------')
-            logger.info("period: %d", period + 1)
-            logger.info("stream training started.")
+            logger.info('---------------- period: %d ----------------', period + 1)
             detector = stream_train(trainset, streamset)
 
-        logger.info("testing started.")
         test(streamset, detector, trainset.label_set)
     else:
-        logger.info("testing started.")
+        pass
         # test(streamset, detector, trainset.label_set)
 
 

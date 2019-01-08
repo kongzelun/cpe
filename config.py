@@ -49,7 +49,7 @@ class Config:
             self.b = 15.0
             self.beta = 1.0
             self.lambda_ = 0.001
-            self.std_coefficient = 3.0
+            self.std_coefficient = 1.0
 
         if not os.path.isdir(self.running_path):
             os.mkdir(self.running_path)
