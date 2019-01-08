@@ -63,35 +63,35 @@ def stream(config, trainset, streamset):
             logger.info("prototypes count after training: %d", len(prototypes))
             prototypes.update()
             logger.info("prototypes count after update: %d", len(prototypes))
-        else:
-            net.save(config.net_path)
-            logger.info("net has been saved.")
-            prototypes.save(config.prototypes_path)
-            logger.info("prototypes has been saved.")
 
-            intra_distances = []
-            with torch.no_grad():
-                net.eval()
-                for i, (feature, label) in enumerate(dataloader):
-                    feature, label = feature.to(net.device), label.item()
-                    feature, out = net(feature)
-                    closest_prototype, distance = prototypes.closest(feature, label)
-                    intra_distances.append((label, distance))
+        net.save(config.net_path)
+        logger.info("net has been saved.")
+        prototypes.save(config.prototypes_path)
+        logger.info("prototypes has been saved.")
 
-            novelty_detector = models.Detector(intra_distances, prototypes.label_set, config.std_coefficient)
-            logger.info("distance average: %s", novelty_detector.average_distances)
-            logger.info("distance std: %s", novelty_detector.std_distances)
-            logger.info("detector threshold: %s", novelty_detector.thresholds)
-            novelty_detector.save(config.detector_path)
-            logger.info("detector has been saved.")
+        intra_distances = []
+        with torch.no_grad():
+            net.eval()
+            for i, (feature, label) in enumerate(dataloader):
+                feature, label = feature.to(net.device), label.item()
+                feature, out = net(feature)
+                closest_prototype, distance = prototypes.closest(feature, label)
+                intra_distances.append((label, distance))
+
+        novelty_detector = models.Detector(intra_distances, train_dataset.label_set, config.std_coefficient)
+        logger.info("distance average: %s", novelty_detector.average_distances)
+        logger.info("distance std: %s", novelty_detector.std_distances)
+        logger.info("detector threshold: %s", novelty_detector.thresholds)
+        novelty_detector.save(config.detector_path)
+        logger.info("detector has been saved.")
 
         return novelty_detector
 
-    def test(test_dataset, novelty_detector, known_labels):
+    def test(test_dataset, novelty_detector):
         logger.info('---------------- test ----------------')
         dataloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-        novelty_detector.known_labels = known_labels
 
+        logger.info("known labels: %s", novelty_detector.known_labels)
         logger.info("distance average: %s", novelty_detector.average_distances)
         logger.info("distance std: %s", novelty_detector.std_distances)
         logger.info("detector threshold: %s", novelty_detector.thresholds)
@@ -113,11 +113,12 @@ def stream(config, trainset, streamset):
                 logger.debug("[test %5d]: %d, %d, %7.4f, %7.4f, %5s, %5s",
                              i + 1, label, predicted_label, prob, distance, real_novelty, detected_novelty)
 
-        tp, fp, fn, tn, cm, acc = novelty_detector.evaluate(detection_results)
+        tp, fp, fn, tn, cm, acc, acc_all = novelty_detector.evaluate(detection_results)
         precision = tp / (tp + fp + 1)
         recall = tp / (tp + fn + 1)
 
-        logger.info("accuracy: %7.4f", acc)
+        logger.info("accuracy of known labels: %.4f", acc)
+        logger.info("accuracy of all labels: %.4f", acc_all)
         logger.info("true positive: %d", tp)
         logger.info("false positive: %d", fp)
         logger.info("false negative: %d", fn)
@@ -129,7 +130,10 @@ def stream(config, trainset, streamset):
     def stream_train(train_dataset, stream_dataset):
         logger.info('---------------- stream train ----------------')
 
+        logger.info('---------------- initial train ----------------')
         novelty_detector = train(trainset)
+        logger.info('---------------- initial test ----------------')
+        test(stream_dataset, novelty_detector)
 
         novelty_dataset = dataset.NoveltyDataset(train_dataset)
         iter_streamloader = enumerate(DataLoader(dataset=stream_dataset, batch_size=1, shuffle=True))
@@ -156,6 +160,7 @@ def stream(config, trainset, streamset):
                 logger.info("novelty dataset size before extending: %d", len(novelty_dataset))
                 novelty_dataset.extend(buffer, config.novelty_buffer_sample_rate)
                 logger.info("novelty dataset size after extending: %d", len(novelty_dataset))
+                logger.info('---------------- incremental train ----------------')
                 novelty_detector = train(novelty_dataset)
                 buffer.clear()
 
@@ -166,7 +171,7 @@ def stream(config, trainset, streamset):
             logger.info('---------------- period: %d ----------------', period + 1)
             detector = stream_train(trainset, streamset)
 
-        test(streamset, detector, trainset.label_set)
+        test(streamset, detector)
     else:
         pass
         # test(streamset, detector, trainset.label_set)

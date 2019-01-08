@@ -6,7 +6,6 @@ import json
 class Config:
     def __init__(self, args):
         # read from args
-        self.path = "{}/config.json".format(args.dir)
         self.running_path = args.dir
         self.clear = args.clear
         self.type = args.type
@@ -58,8 +57,8 @@ class Config:
             shutil.rmtree(args.dir)
             os.mkdir(args.dir)
 
-        if os.path.isfile(self.path):
-            with open(self.path) as file:
+        if os.path.isfile(self.parameter_path):
+            with open(self.parameter_path) as file:
                 config_dict = json.load(file)
             self.update(**config_dict)
 
