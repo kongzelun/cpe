@@ -69,20 +69,20 @@ class Config:
         self.dump()
 
     def dump(self):
-        with open(self.parameter_path, 'w') as file:
-            parameters = {
-                'number_layers': self.number_layers,
-                'growth_rate': self.growth_rate,
-                'learning_rate': self.learning_rate,
-                'drop_rate': self.drop_rate,
-                'threshold': self.threshold,
-                'gamma': self.gamma,
-                'tao': self.tao,
-                'b': self.b,
-                'beta': self.beta,
-                'lambda_': self.lambda_,
-                'std_coefficient': self.std_coefficient
-            }
+        parameters = {
+            'number_layers': self.number_layers,
+            'growth_rate': self.growth_rate,
+            'learning_rate': self.learning_rate,
+            'drop_rate': self.drop_rate,
+            'threshold': self.threshold,
+            'gamma': self.gamma,
+            'tao': self.tao,
+            'b': self.b,
+            'beta': self.beta,
+            'lambda_': self.lambda_,
+            'std_coefficient': self.std_coefficient
+        }
+        with open(self.parameter_path, mode='w') as file:
             json.dump(parameters, file)
 
     def __repr__(self):

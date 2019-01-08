@@ -138,6 +138,10 @@ class DenseNet(nn.Module):
         self.device = device
         self.to(device)
 
+    @property
+    def shape(self):
+        return torch.Size((self.channels, ceil(self.tensor_view[1] / 8), ceil(self.tensor_view[2] / 8)))
+
     def forward(self, x):
         out = self.conv1(x)
         out = self.trans1(self.block1(out))
@@ -154,10 +158,6 @@ class DenseNet(nn.Module):
         torch.save(self.state_dict(), path)
 
     def load(self, path):
-        """
-        load saved model state dict
-        :param path: pkl path
-        """
         state_dict = torch.load(path)
         self.load_state_dict(state_dict)
 

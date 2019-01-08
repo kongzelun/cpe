@@ -58,7 +58,7 @@ def stream(config, trainset, streamset):
                 loss.backward()
                 optimizer.step()
 
-                logger.debug("[%d, %d] %7.4f %7.4f", epoch + 1, i + 1, loss.item(), distance)
+                logger.debug("[train %d, %d] %7.4f %7.4f", epoch + 1, i + 1, loss.item(), distance)
 
             logger.info("prototypes count after training: %d", len(prototypes))
             prototypes.update()
@@ -170,11 +170,9 @@ def stream(config, trainset, streamset):
         for period in range(config.period):
             logger.info('---------------- period: %d ----------------', period + 1)
             detector = stream_train(trainset, streamset)
-
-        test(streamset, detector)
+            test(streamset, detector)
     else:
-        pass
-        # test(streamset, detector, trainset.label_set)
+        test(streamset, detector)
 
 
 def main(args):
@@ -206,7 +204,7 @@ def main(args):
         trainset = dataset.Cifar10(train=True)
         testset = dataset.Cifar10(train=False)
     else:
-        raise RuntimeError("Dataset not found.")
+        raise ValueError("Dataset '{}' not found.".format(config.dataset))
 
     logger.info("****************************************************************")
     logger.info("%s", config)
