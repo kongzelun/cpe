@@ -19,6 +19,13 @@ def stream(config, trainset, streamset):
                           drop_rate=config.drop_rate)
     logger.info("densenet channel: %d", net.channels)
 
+    try:
+        net.load(config.net_path)
+    except FileNotFoundError:
+        pass
+    else:
+        logger.info("Load model from file '%s'.", config.net_path)
+
     criterion = models.CPELoss(gamma=config.gamma, tao=config.tao, b=config.b, beta=config.beta, lambda_=config.lambda_)
     optimizer = optim.SGD(net.parameters(), lr=config.learning_rate, momentum=0.9)
 
@@ -26,9 +33,10 @@ def stream(config, trainset, streamset):
     # load saved prototypes
     try:
         prototypes.load(config.prototypes_path)
-        logger.info("load prototypes from file '%s'.", config.prototypes_path)
     except FileNotFoundError:
         pass
+    else:
+        logger.info("load prototypes from file '%s'.", config.prototypes_path)
     logger.info("original prototype count: %d", len(prototypes))
 
     detector = None
@@ -144,7 +152,7 @@ def stream(config, trainset, streamset):
             logger.debug("[stream %5d]: %d, %d, %7.4f, %7.4f, %5s, %5s, %4d",
                          i + 1, label, predicted_label, prob, distance, real_novelty, detected_novelty, len(buffer))
 
-            if len(buffer) >= 1000:
+            if len(buffer) == 1000:
                 logger.info("novelty dataset size before extending: %d", len(novelty_dataset))
                 novelty_dataset.extend(buffer, config.novelty_buffer_sample_rate)
                 logger.info("novelty dataset size after extending: %d", len(novelty_dataset))
