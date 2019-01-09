@@ -203,6 +203,12 @@ def main(args):
     elif config.dataset == 'c10':
         trainset = dataset.Cifar10(train=True)
         testset = dataset.Cifar10(train=False)
+    elif config.dataset == 'svhn':
+        trainset = dataset.SVHN(train=True)
+        testset = dataset.SVHN(train=False)
+    elif config.dataset == 'cinic':
+        trainset = dataset.Cinic(train=True)
+        testset = dataset.Cinic(train=False)
     else:
         raise ValueError("Dataset '{}' not found.".format(config.dataset))
 
