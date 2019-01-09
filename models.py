@@ -128,9 +128,10 @@ class DenseNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.pooling = nn.MaxPool2d(kernel_size=2, ceil_mode=True)
 
-        self.fc1 = nn.Linear(channels * ceil(tensor_view[1] / 8) * ceil(tensor_view[2] / 8), 1000)
-        self.fc2 = nn.Linear(1000, 500)
-        self.fc3 = nn.Linear(500, 10)
+        self.fc1 = nn.Linear(channels * ceil(tensor_view[1] / 8) * ceil(tensor_view[2] / 8), 5000)
+        self.fc2 = nn.Linear(5000, 1000)
+        self.fc3 = nn.Linear(1000, 500)
+        self.fc4 = nn.Linear(500, 10)
 
         self.channels = channels
         self.tensor_view = tensor_view
@@ -148,10 +149,11 @@ class DenseNet(nn.Module):
         out = self.trans2(self.block2(out))
         out = self.block3(out)
         out = self.relu(self.bn(out))
-        feature = self.pooling(out).view(1, -1)
-        out = self.relu(self.fc1(feature))
-        out = self.relu(self.fc2(out))
-        out = self.fc3(out)
+        out = self.pooling(out).view(1, -1)
+        out = self.relu(self.fc1(out))
+        feature = self.relu(self.fc2(out))
+        out = self.relu(self.fc3(feature))
+        out = self.fc4(out)
         return feature, out
 
     def save(self, path):

@@ -42,10 +42,10 @@ class Config:
             self.growth_rate = 16
             self.learning_rate = 0.001
             self.drop_rate = 0.2
-            self.threshold = 15.0
-            self.gamma = 1 / 15.0
-            self.tao = 30.0
-            self.b = 15.0
+            self.threshold = 10.0
+            self.gamma = 0.1
+            self.tao = 20.0
+            self.b = 10.0
             self.beta = 1.0
             self.lambda_ = 0.001
             self.std_coefficient = 1.0
