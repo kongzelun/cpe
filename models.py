@@ -128,10 +128,9 @@ class DenseNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.pooling = nn.MaxPool2d(kernel_size=2, ceil_mode=True)
 
-        self.fc1 = nn.Linear(channels * ceil(tensor_view[1] / 8) * ceil(tensor_view[2] / 8), 4000)
-        self.fc2 = nn.Linear(4000, 2000)
-        self.fc3 = nn.Linear(2000, 500)
-        self.fc4 = nn.Linear(500, 10)
+        self.fc1 = nn.Linear(channels * ceil(tensor_view[1] / 8) * ceil(tensor_view[2] / 8), 10000)
+        self.fc2 = nn.Linear(10000, 1000)
+        self.fc3 = nn.Linear(1000, 10)
 
         self.channels = channels
         self.tensor_view = tensor_view
@@ -151,9 +150,8 @@ class DenseNet(nn.Module):
         out = self.relu(self.bn(out))
         out = self.pooling(out).view(1, -1)
         out = self.relu(self.fc1(out))
-        feature = self.relu(self.fc2(out))
-        out = self.relu(self.fc3(feature))
-        out = self.fc4(out)
+        feature = self.fc2(out)
+        out = self.fc3(self.relu(feature))
         return feature, out
 
     def save(self, path):
@@ -290,9 +288,10 @@ class DCELoss(nn.Module):
 
         self.gamma = gamma
 
-    def forward(self, feature, label, prototypes):
-        distances = compute_multi_distance(feature, prototypes.cat(label))
-        prob = (-self.gamma * distances.pow(2)).exp().sum()
+    def forward(self, feature, prototype, prototypes):
+        # distances = compute_multi_distance(feature, prototypes.cat(label))
+        distance = compute_distance(feature, prototype.feature)
+        prob = (-self.gamma * distance.pow(2)).exp().sum()
         # prob = (-self.gamma * distances).exp().sum()
 
         distances = compute_multi_distance(feature, prototypes.cat())
@@ -338,9 +337,11 @@ class CPELoss(nn.Module):
 
     def forward(self, feature, out, label, prototypes):
         prototype, distance = prototypes.assign(feature.clone().detach(), label.item())
+        closest_prototype, min_distance = prototypes.closest(feature.clone().detach())
 
-        dce_loss = self.dce(feature, label.item(), prototypes)
+        dce_loss = self.dce(feature, prototype, prototypes)
         pairwise_loss = self.pairwise(feature, label.item(), prototype)
+        pairwise_loss += self.pairwise(feature, closest_prototype.label, closest_prototype)
         ce_loss = self.ce(out, label)
 
         # if closest_prototype is not None:

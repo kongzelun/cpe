@@ -26,26 +26,26 @@ class Config:
 
         # parameters
         if self.dataset == 'fm':
-            self.number_layers = 4
-            self.growth_rate = 8
-            self.learning_rate = 0.001
-            self.drop_rate = 0.0
-            self.threshold = 10.0
-            self.gamma = 0.1
-            self.tao = 20.0
-            self.b = 10.0
-            self.beta = 1.0
-            self.lambda_ = 0.001
-            self.std_coefficient = 3.0
-        else:
             self.number_layers = 6
             self.growth_rate = 12
             self.learning_rate = 0.001
             self.drop_rate = 0.0
-            self.threshold = 10.0
-            self.gamma = 0.1
-            self.tao = 20.0
-            self.b = 10.0
+            self.threshold = 5.0
+            self.gamma = 1 / self.threshold
+            self.tao = 2 * self.threshold
+            self.b = self.threshold
+            self.beta = 1.0
+            self.lambda_ = 0.001
+            self.std_coefficient = 1.0
+        else:
+            self.number_layers = 8
+            self.growth_rate = 16
+            self.learning_rate = 0.001
+            self.drop_rate = 0.0
+            self.threshold = 5.0
+            self.gamma = 1 / self.threshold
+            self.tao = 2 * self.threshold
+            self.b = self.threshold
             self.beta = 1.0
             self.lambda_ = 0.001
             self.std_coefficient = 1.0

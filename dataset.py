@@ -129,7 +129,7 @@ class Cinic(Dataset):
 
 class NoveltyDataset(Dataset):
     def __init__(self, dataset):
-        self.data = sample(dataset.data, 2000)
+        self.data = list(dataset.data)
         self.label_set = set(dataset.label_set)
 
     def extend(self, buffer, percent):
